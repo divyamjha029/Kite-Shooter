@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kite Shooter</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #70c5ce; /* Light blue sky */
+            font-family: 'Inter', sans-serif;
+            color: #333;
+            text-align: center;
+        }
+
+        canvas {
+            display: block;
+            background: linear-gradient(to bottom, #87CEEB 0%, #E0F6FF 100%); /* Sky gradient */
+        }
+
+        .game-info {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(255, 255, 255, 0.7);
+            padding: 15px 25px;
+            border-radius: 12px;
+            border: 1px solid rgba(0, 0, 0, 0.1);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            z-index: 10;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 1.8rem;
+            font-weight: 600;
+            letter-spacing: 1px;
+        }
+
+        p {
+            margin: 5px 0 0;
+            font-size: 1rem;
+            color: #555;
+        }
+
+        #score {
+            font-weight: 600;
+            font-size: 1.2rem;
+        }
+
+        .donation-widget {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background-color: rgba(255, 255, 255, 0.7);
+            padding: 15px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            z-index: 20;
+            text-align: center;
+        }
+
+        .donation-widget img {
+            width: 120px;
+            height: 120px;
+            border-radius: 8px;
+            margin-bottom: 8px;
+        }
+
+        .donation-widget p {
+            margin: 0;
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: #333;
+        }
+    </style>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap">
+</head>
+<body>
+
+    <div class="donation-widget">
+        <!-- 
+          To use your uploaded QR code:
+          1. Upload your image to an image hosting service (like imgur.com).
+          2. Get the direct link to the image (e.g., "https://i.imgur.com/your-image.jpg").
+          3. Replace the 'src' value in the img tag below with your direct link.
+        -->
+        <img src="https://i.ibb.co/FLDy5xSc/UPI-2.jpg" alt="UPI-2" border="0">
+        <p>Keep me coding → Scan & Pay</p>
+    </div>
+
+    <div class="game-info">
+        <h1>Kite Shooter</h1>
+        <p>Score: <span id="score">0</span></p>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreEl = document.getElementById('score');
+        
+        let arrows = [];
+        let kites = [];
+        let score = 0;
+        let kiteSpawnTimer = 0;
+
+        // Set canvas dimensions
+        function setCanvasSize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        setCanvasSize();
+
+        // --- Utility Functions ---
+        function random(min, max) {
+            return Math.random() * (max - min) + min;
+        }
+
+        function calculateDistance(p1x, p1y, p2x, p2y) {
+            const xDistance = p1x - p2x;
+            const yDistance = p1y - p2y;
+            return Math.sqrt(Math.pow(xDistance, 2) + Math.pow(yDistance, 2));
+        }
+        
+        // --- Arrow Class ---
+        // Represents the projectile shot by the player
+        class Arrow {
+            constructor(startX, startY, endX, endY) {
+                this.x = startX;
+                this.y = startY;
+                this.angle = Math.atan2(endY - startY, endX - startX);
+                this.speed = 10;
+                this.velocityX = Math.cos(this.angle) * this.speed;
+                this.velocityY = Math.sin(this.angle) * this.speed;
+            }
+
+            update() {
+                this.x += this.velocityX;
+                this.y += this.velocityY;
+            }
+
+            draw() {
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.rotate(this.angle);
+                ctx.beginPath();
+                ctx.moveTo(0, 0);
+                ctx.lineTo(-20, -5);
+                ctx.moveTo(0, 0);
+                ctx.lineTo(-20, 5);
+                ctx.moveTo(0, 0);
+                ctx.lineTo(-30, 0);
+                ctx.lineWidth = 3;
+                ctx.strokeStyle = '#5c3c10';
+                ctx.stroke();
+                ctx.restore();
+            }
+        }
+
+        // --- Kite Class ---
+        // Represents the targets
+        class Kite {
+            constructor() {
+                this.width = 50;
+                this.height = 60;
+                this.x = random(0, canvas.width - this.width);
+                this.y = -this.height; // Start above screen
+                this.hue = random(0, 360);
+                this.speedX = random(1, 3) * (Math.random() < 0.5 ? 1 : -1);
+                this.speedY = random(0.5, 1.5);
+                this.waveAngle = 0;
+            }
+
+            update() {
+                this.y += this.speedY;
+                this.x += this.speedX;
+                
+                // Gentle wave motion
+                this.waveAngle += 0.05;
+                this.x += Math.sin(this.waveAngle) * 0.5;
+
+                // Boundary check
+                if (this.x < 0 || this.x > canvas.width - this.width) {
+                    this.speedX *= -1;
+                }
+            }
+
+            draw() {
+                // Kite Body
+                ctx.beginPath();
+                ctx.moveTo(this.x, this.y); // Top point
+                ctx.lineTo(this.x - this.width / 2, this.y + this.height / 2); // Left
+                ctx.lineTo(this.x, this.y + this.height); // Bottom
+                ctx.lineTo(this.x + this.width / 2, this.y + this.height / 2); // Right
+                ctx.closePath();
+                ctx.fillStyle = `hsl(${this.hue}, 90%, 70%)`;
+                ctx.fill();
+                ctx.strokeStyle = `hsl(${this.hue}, 90%, 50%)`;
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                // Kite Tail
+                ctx.beginPath();
+                ctx.moveTo(this.x, this.y + this.height);
+                ctx.quadraticCurveTo(
+                    this.x - 20, this.y + this.height + 40, 
+                    this.x, this.y + this.height + 80
+                );
+                ctx.stroke();
+            }
+        }
+
+        // --- Main Logic ---
+        function spawnKite() {
+            kites.push(new Kite());
+        }
+
+        function shootArrow(targetX, targetY) {
+            const startX = canvas.width / 2;
+            const startY = canvas.height;
+            arrows.push(new Arrow(startX, startY, targetX, targetY));
+        }
+        
+        function animate() {
+            requestAnimationFrame(animate);
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Spawn new kites periodically
+            kiteSpawnTimer++;
+            if (kiteSpawnTimer % 100 === 0) { // Adjust frequency of kites
+                spawnKite();
+            }
+
+            // Update and draw arrows
+            for (let i = arrows.length - 1; i >= 0; i--) {
+                const arrow = arrows[i];
+                arrow.update();
+                arrow.draw();
+
+                // Remove arrows that go off-screen
+                if (arrow.x < 0 || arrow.x > canvas.width || arrow.y < 0) {
+                    arrows.splice(i, 1);
+                }
+            }
+
+            // Update, draw kites and check for collisions
+            for (let i = kites.length - 1; i >= 0; i--) {
+                const kite = kites[i];
+                kite.update();
+                kite.draw();
+
+                // Collision detection
+                for (let j = arrows.length - 1; j >= 0; j--) {
+                    const arrow = arrows[j];
+                    const distance = calculateDistance(arrow.x, arrow.y, kite.x, kite.y + kite.height / 2);
+                    if (distance < kite.width / 2) {
+                        // Hit!
+                        kites.splice(i, 1);
+                        arrows.splice(j, 1);
+                        score += 10;
+                        scoreEl.textContent = score;
+                        break; // Stop checking other arrows for this kite
+                    }
+                }
+
+                // Remove kites that go off-screen
+                if (kite.y > canvas.height + kite.height) {
+                    kites.splice(i, 1);
+                }
+            }
+        }
+        
+        // --- Event Listeners ---
+        window.addEventListener('resize', setCanvasSize);
+        canvas.addEventListener('click', (e) => {
+            shootArrow(e.clientX, e.clientY);
+        });
+
+        // Start the animation
+        animate();
+    </script>
+</body>
+</html>
